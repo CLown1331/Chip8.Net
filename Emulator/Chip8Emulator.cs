@@ -20,16 +20,18 @@ namespace Emulator
         private UInt16          SP;                                     // stack pointer
         private UInt16          nnn;                                    // address
 
-        Byte                    x;                                      // 4bit register
-        Byte                    y;                                      // 4bit register
-        Byte                    n;                                      // 4bit constant
-        Byte                    nn;                                     // 8bit constant
-        Byte[] memory =         new Byte[MemorySize];                   // virtual machine memory
-        Byte[] V =              new Byte[16];
-        Byte[,] gfx =           new Byte[GfsRow, GfxCol];               // gfx memory
-        Byte                    delayTimer;
-        Byte                    soundTimer;
-        Byte[] key =            new Byte[KeySize];                  
+        private Byte x;                                                 // 4bit register
+        private Byte y;                                                 // 4bit register
+        private Byte n;                                                 // 4bit constant
+        private Byte nn;                                                // 8bit constant
+        private Byte[] memory =         new Byte[MemorySize];           // virtual machine memory
+        private Byte[] V =              new Byte[16];
+        private Byte[,] gfx =           new Byte[GfsRow, GfxCol];       // gfx memory
+        private Byte delayTimer;
+        private Byte soundTimer;
+        private Byte[] key =            new Byte[KeySize];
+
+        private Boolean drawFlag;
 
         private Byte[] chip8Fontset = new Byte[80] {
                 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -136,10 +138,15 @@ namespace Emulator
 
         public Chip8Emulator()
         {
-            PC          = 0x200;
-            opcode      = 0;
-            I           = 0;
-            SP          = 0;
+            Initialize();
+        }
+
+        private void Initialize()
+        {
+            PC = 0x200;
+            opcode = 0;
+            I = 0;
+            SP = 0;
 
             JumpTable = new OpCodeResolve[16]{
                 new OpCodeResolve(OpcodeX0), new OpCodeResolve(OpcodeX1), new OpCodeResolve(OpcodeX2), new OpCodeResolve(OpcodeX3),
@@ -147,6 +154,35 @@ namespace Emulator
                 new OpCodeResolve(OpcodeX8), new OpCodeResolve(OpcodeX9), new OpCodeResolve(OpcodeXA), new OpCodeResolve(OpcodeXB),
                 new OpCodeResolve(OpcodeXC), new OpCodeResolve(OpcodeXD), new OpCodeResolve(OpcodeXE), new OpCodeResolve(OpcodeXF)
             };
+
+            Array.Clear(memory, 0, memory.Length);
+            Array.Clear(gfx, 0, gfx.Length);
+            Array.Clear(stack, 0, stack.Length);
+            Array.Clear(key, 0, key.Length);
+
+            for (int i = 0; i < 80; i++)
+            {
+                memory[i] = chip8Fontset[i];
+            }
+
+            delayTimer = 0;
+            soundTimer = 0;
+            drawFlag = true;
+        }
+
+        void Cycle()
+        {
+            opcode = (UInt16)((memory[PC] << 8) | memory[PC + 1]);
+
+            Console.WriteLine("Ox{0:X}\n", opcode);
+
+            n = (Byte)(opcode & 0x000F);
+            nn = (Byte)(opcode & 0x00FF);
+            nnn = (UInt16)(opcode & 0x0FFF);
+            x = (Byte)(opcode & 0x0F00);
+            y = (Byte)(opcode & 0x00F0);
+
+            JumpTable[(opcode & 0xF000) >> 12]();
         }
     }
 }
