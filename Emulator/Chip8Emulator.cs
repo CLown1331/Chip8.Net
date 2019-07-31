@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace Emulator
 {
@@ -156,7 +157,73 @@ namespace Emulator
 
         void OpcodeXF()
         {
-            throw new NotImplementedException();
+            switch (nn)
+            {
+                case 0x07:
+                    V[x] = delayTimer;
+                    PC += 2;
+                    break;
+                case 0x0A:
+                    {
+                        bool gotKeyPress = false;
+                        while (!gotKeyPress)
+                        {
+                            for (int i = 0; i < KeySize; i++)
+                            {
+                                if (key[i] > 0)
+                                {
+                                    V[x] = (Byte)(i);
+                                    gotKeyPress = true;
+                                    break;
+                                }
+                            }
+                        }
+                        PC += 2;
+                    }
+                    break;
+                case 0x15:
+                    delayTimer = V[x];
+                    PC += 2;
+                    break;
+                case 0x18:
+                    soundTimer = V[x];
+                    PC += 2;
+                    break;
+                case 0x1E:
+                    V[0xF] = (Byte)((I + V[x]) > 0xFFF ? 1 : 0);
+                    I += V[x];
+                    PC += 2;
+                    break;
+                case 0x29:
+                    I =(Byte)(5 * V[x]);
+                    PC += 2;
+                    break;
+                case 0x33:
+                    memory[I + 0] = (Byte)((V[x] % 1000) / 100);
+                    memory[I + 1] = (Byte)((V[x] % 100) / 10);
+                    memory[I + 2] = (Byte)(V[x] % 10);
+                    PC += 2;
+                    break;
+                case 0x55:
+                    for (int i = 0; i <= x; i++)
+                    {
+                        memory[I + i] = V[i];
+                    }
+                    I += (Byte)(x + 1);
+                    PC += 2;
+                    break;
+                case 0x65:
+                    for (int i = 0; i <= x; i++)
+                    {
+                        V[i] = memory[I + i];
+                    }
+                    I += (Byte)(x + 1);
+                    PC += 2;
+                    break;
+                default:
+                    throw new NotImplementedException();
+                    break;
+            }
         }
 
         private void DrawSprite(byte b, byte b1, byte b2)
@@ -273,7 +340,27 @@ namespace Emulator
             {
                 Cycle();
                 PrintState();
+                if (drawFlag)
+                {
+                    DrawFrame();
+                }
+                Thread.Sleep(1000);
             }
+        }
+
+        private void DrawFrame()
+        {
+                Console.Clear();
+                for (int x = 0; x < 32; x++)
+                {
+                    for (int y = 0; y < 64; y++)
+                    {
+                        Console.Write((gfx[x, y] == 1 ? '#' : '.'));
+                    }
+                    Console.Write('\n');
+                }
+
+                drawFlag = false;
         }
     }
 }
