@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace Emulator
@@ -54,22 +55,41 @@ namespace Emulator
         
         void OpcodeX0()
         {
-            throw new NotImplementedException();
+            switch (nn)
+            {
+                case 0xE0:
+                    Console.WriteLine("clearing the screen");
+                    Array.Clear(gfx, 0, gfx.Length);
+                    drawFlag = true;
+                    PC += 2;
+                    break;
+                case 0xEE:
+                    Console.WriteLine("subroutine return");
+                    PC = stack[--SP];
+                    break;
+                default:
+                    throw new NotImplementedException();
+                    break;
+            }
         }
 
         void OpcodeX1()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("jumping to nnn: 0x{0:X}", nnn);
+            PC = nnn;
         }
 
         void OpcodeX2()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("call subroutine in nnn: 0x{0:X}", nnn);
+            stack[SP++] = (UInt16)(PC + 2);
+            PC = nnn;
         }
 
         void OpcodeX3()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("skip next instruction if 0x{0:X} == 0x{1:X}\n", V[x], nn);
+            PC += (UInt16)((V[x] == nn) ? 4 : 2);
         }
 
         void OpcodeX4()
@@ -84,12 +104,16 @@ namespace Emulator
 
         void OpcodeX6()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("set 0x{0:x} = 0x{1:x}", x, nn);
+            V[x] = nn;
+            PC += 2;
         }
 
         void OpcodeX7()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("set 0x{0:x} += 0x{1:x}", x, nn);
+            V[x] += nn;
+            PC += 2;
         }
 
         void OpcodeX8()
@@ -104,7 +128,8 @@ namespace Emulator
 
         void OpcodeXA()
         {
-            throw new NotImplementedException();
+            I = nnn;
+            PC += 2;
         }
 
         void OpcodeXB()
@@ -119,7 +144,9 @@ namespace Emulator
 
         void OpcodeXD()
         {
-            throw new NotImplementedException();
+            DrawSprite(V[x], V[y], n);
+            drawFlag = true;
+            PC += 2;
         }
 
         void OpcodeXE()
@@ -131,6 +158,37 @@ namespace Emulator
         {
             throw new NotImplementedException();
         }
+
+        private void DrawSprite(byte b, byte b1, byte b2)
+        {
+            var row = y;
+            var col = x;
+
+            V[0xF] = 0;
+
+            for (var byteIndex = 0; byteIndex < n; byteIndex++)
+            {
+
+                var hand = memory[I + byteIndex];
+
+                for (var bitIndex = 0; bitIndex < 8; bitIndex++)
+                {
+                    var bit = (hand >> bitIndex) & 0x1;
+
+                    var rowIndex = (row + byteIndex) % GfsRow;
+
+                    var colIndex = (col + (7 - bitIndex)) % GfxCol;
+
+                    if (bit == 1 && gfx[rowIndex, colIndex] == 1)
+                    {
+                        V[0xF] = 1;
+                    }
+
+                    gfx[rowIndex, colIndex] ^= 1;
+                }
+            }
+        }
+
 
         private delegate void OpCodeResolve();
 
@@ -170,7 +228,7 @@ namespace Emulator
             drawFlag = true;
         }
 
-        void Cycle()
+        private void Cycle()
         {
             opcode = (UInt16)((memory[PC] << 8) | memory[PC + 1]);
 
@@ -179,10 +237,43 @@ namespace Emulator
             n = (Byte)(opcode & 0x000F);
             nn = (Byte)(opcode & 0x00FF);
             nnn = (UInt16)(opcode & 0x0FFF);
-            x = (Byte)(opcode & 0x0F00);
-            y = (Byte)(opcode & 0x00F0);
+            x = (Byte)((opcode & 0x0F00) >> 8);
+            y = (Byte)((opcode & 0x00F0) >> 4);
 
             JumpTable[(opcode & 0xF000) >> 12]();
+        }
+
+        public void LoadRom(string filePath)
+        {
+            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            {
+                fs.Read(memory, 0x200, MaxGameSize);
+            }
+        }
+
+        private void PrintState()
+        {
+
+            Console.WriteLine("------------------------------------------------------------------\n");
+
+            Console.WriteLine("V0: 0x{0:X} V4: 0x{1:X} V8: 0x{2:X}  VC: 0x{3:X}", V[0], V[4], V[8], V[12]);
+            Console.WriteLine("V1: 0x{0:X} V5: 0x{1:X} V9: 0x{2:X}  VD: 0x{3:X}", V[1], V[5], V[9], V[13]);
+            Console.WriteLine("V2: 0x{0:X} V6: 0x{1:X} VA: 0x{2:X}  VE: 0x{3:X}", V[2], V[6], V[10], V[14]);
+            Console.WriteLine("V3: 0x{0:X} V7: 0x{1:X} VB: 0x{2:X}  VF: 0x{3:X}", V[3], V[7], V[11], V[15]);
+
+            Console.WriteLine("PC: 0x{0:X}\n", PC);
+            Console.WriteLine("------------------------------------------------------------------");
+
+        }
+
+        public void Run()
+        {
+            PrintState();
+            while (true)
+            {
+                Cycle();
+                PrintState();
+            }
         }
     }
 }
